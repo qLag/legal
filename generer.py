@@ -92,8 +92,27 @@ def main(dossier: str) -> None:
     if date:
         avant = re.sub(r"mise à jour le [^<]+", f"mise à jour le {date.group(1)}", avant)
 
-    page.write_text(avant + DEBUT + "\n" + convertir(md) + "\n" + FIN + apres, encoding="utf-8")
-    print(f"{page} régénérée ({len(convertir(md))} caractères de corps).")
+    resultat = avant + DEBUT + "\n" + convertir(md) + "\n" + FIN + apres
+
+    # Contrôle de fermeture des balises de structure.
+    #
+    # Écrit après avoir cassé la page une fois : le marqueur d'ouverture avait été posé
+    # trop haut, à l'intérieur du cartouche d'en-tête, et la première génération a emporté
+    # le `</div>` qui le fermait. Le navigateur ne s'en plaint pas — il imbrique
+    # silencieusement tout le document dans un conteneur flex, et la politique s'affiche en
+    # colonnes illisibles. Une page publiée ne doit pas pouvoir sortir d'ici dans cet état.
+    for balise in ("div", "main", "ul", "p"):
+        ouvrants = len(re.findall(rf"<{balise}[ >]", resultat))
+        fermants = len(re.findall(rf"</{balise}>", resultat))
+        if ouvrants != fermants:
+            sys.exit(
+                f"{page} : {ouvrants} <{balise}> pour {fermants} </{balise}>. "
+                "Rien n'a été écrit. Vérifiez que le marqueur CORPS:DEBUT est bien placé "
+                "après la fermeture du cartouche d'en-tête."
+            )
+
+    page.write_text(resultat, encoding="utf-8")
+    print(f"{page} régénérée ({len(convertir(md))} caractères de corps), balises équilibrées.")
 
 
 if __name__ == "__main__":
